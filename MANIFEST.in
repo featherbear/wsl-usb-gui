@@ -1,0 +1,4 @@
+include README.md
+include wsl_usl_gui/*.ui
+recursive-include wsl_usl_gui/*.ico
+recursive-include *.png

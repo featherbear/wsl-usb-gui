@@ -1,0 +1,69 @@
+stages:
+  - build
+  - release
+ 
+#################################
+# Build the Windows MSI Installer
+#################################
+build:
+  stage: build
+  tags:
+    - windows
+    - windows-1809
+  script:
+    # Install python
+    - choco install -y python3 --version=3.9.10
+    # Ensure Pip is on the path
+    - $pydir = & py -3.9 -c "import sys,os;print(os.path.join(os.path.dirname(sys.executable),'Scripts'))"
+    - $Env:path += ";$pydir"
+    - Get-Command pip
+    - py -3.9 -m pip install pip-system-certs
+
+    # Install WIX Toolkit
+    - wget https://github.com/wixtoolset/wix3/releases/download/wix311rtm/wix311-binaries.zip -UseBasicParsing -OutFile c:\wix311-binaries.zip
+    - mkdir c:\\wix311
+    - Expand-Archive -Path c:\wix311-binaries.zip -DestinationPath c:\\wix311\\bin
+    - $env:WIX="C:\\wix311\\"
+    - $env:PYTHONIOENCODING="UTF-8"
+
+    # Build app  
+    - py -3.9 -m pip install -e .
+    - py -3.9 -m pip install boto3==1.14.48  # newer version not compatible with pinned briefcase
+    - py -3.9 -m pip install git+git://github.com/andrewleech/briefcase.git@992ece7e
+    
+    - git clone https://github.com/andrewleech/Python-Windows-template
+    - cd Python-Windows-template
+    - git checkout b49740688bd2a657ce3500ce846d72713d5594e5
+    - cd ..
+
+    - py -3.9 setup.py windows --sanitize-version --build --template Python-Windows-template
+    - dir windows
+    - copy-item windows\\*.msi .\\
+    - dir
+    #- sleep 1200
+    #- mv windows\\*.msi .\\
+
+  artifacts:
+    paths:
+      - .\\*.msi
+    expire_in: 3 days
+
+
+########################################################################
+# Upload the built installer to the tags page on Gitlab for the release
+########################################################################
+publish:
+  stage: release
+  image: python:3
+  variables:
+    GIT_STRATEGY: none
+    GIT_SUBMODULE_STRATEGY: none
+  script:
+    - pip3 install gitlab-release
+    - gitlab-release ./*.msi
+  only:
+    - tags
+  artifacts:
+    expire_in: never
+    paths:
+      - ./*.msi

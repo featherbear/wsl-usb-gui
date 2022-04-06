@@ -54,10 +54,10 @@ At this point you should probably reboot your computer, then you can use this to
 
 
 ## Screenshot
-![screenshot of wsl-usb-gui](wsl-usb-gui.png)
+![screenshot of wsl-usb-gui](screenshot.png)
 
 
 ## Credits
 All the hard work to get USB devices working in WSL is thanks to USBIP and in particular usbipd-win : https://github.com/dorssel/usbipd-win
 
-This gui tool was inspired by https://github.com/K-Francis-H/usbip-gui however not much of that code is left here now!
+This gui tool was inspired by https://github.com/K-Francis-H/usbip-gui and originally based on this codebase.

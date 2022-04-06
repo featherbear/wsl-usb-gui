@@ -43,10 +43,10 @@ WndProcType = ctypes.WINFUNCTYPE(c_int, HWND, UINT, WPARAM, LPARAM)
 
 SetWindowLongPtr = ctypes.windll.user32.SetWindowLongPtrA
 SetWindowLongPtr.argtypes = [HWND, c_int, WndProcType]
-SetWindowLongPtr.restype = LONG_PTR
+SetWindowLongPtr.restype = WndProcType
 
 CallWindowProc = ctypes.windll.user32.CallWindowProcA
-CallWindowProc.argtypes = [LONG_PTR, HWND, UINT, WPARAM, LPARAM]
+CallWindowProc.argtypes = [WndProcType, HWND, UINT, WPARAM, LPARAM]
 CallWindowProc.restype = LRESULT
 
 DefWindowProcA = ctypes.windll.user32.DefWindowProcA
@@ -95,8 +95,8 @@ def localWndProc(hWnd, msg, wParam, lParam):
     if msg == WM_DESTROY:
         unhookWndProc()
 
-    # ret = CallWindowProc(__oldWndProc, hWnd, msg, wParam, lParam)
-    ret = DefWindowProcA(hWnd, msg, wParam, lParam)
+    ret = CallWindowProc(__oldWndProc, hWnd, msg, wParam, lParam)
+    # ret = DefWindowProcA(hWnd, msg, wParam, lParam)
     return ret
 
 
