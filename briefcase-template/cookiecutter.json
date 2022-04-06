@@ -1,0 +1,9 @@
+{
+    "app_name": "appname",
+    "formal_name": "App Name",
+    "version": "0.0.1",
+    "organization_name": "Example Corporation",
+    "description": "Short description of app",
+    "dir_name": "windows",
+    "guid": "1409c8f5-c276-4cf3-a2fd-defcbdfef9a2"
+}
