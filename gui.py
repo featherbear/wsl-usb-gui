@@ -1,8 +1,8 @@
 #requires python 3.8+ may work on 3.6, 3.7 definitely broken on <= 3.5 due to subprocess args (text=True)
 import os
-# from tkinter import *
-# from tkinter.ttk import *
-# from tkinter.messagebox import showwarning
+from tkinter import *
+from tkinter.ttk import *
+from tkinter.messagebox import showwarning
 import json
 import subprocess
 import sys
@@ -13,49 +13,77 @@ from collections import namedtuple
 from pathlib import Path
 from typing import *
 import appdirs
-from usb_monitor import registerDeviceNotification, unregisterDeviceNotification
 
-import PySimpleGUIWx as sg
 
+WSL = os.environ.get('WSL_INTEROP', False)
 
 DEVICE_COLUMNS = ["bus_id", "description"]
 DEVICE_COLUMN_WIDTHS = [50, 50]
 ATTACHED_COLUMNS = ["bus_id", "description"] #, "client"]
 ATTACHED_COLUMN_WIDTHS = [20, 80, 20]
 USBIPD_PORT = 3240
-
 CONFIG_FILE = Path(appdirs.user_data_dir("wsl-usb-gui", "")) / "config.json"
 
+attached_devices = {}
+pinned_profiles = []
 
-Device = namedtuple("Device", "BusId Description Attached")
-Profile = namedtuple("Profile", "BusId Description")
+# register for device change notifications
+import uuid
+import ctypes
+from ctypes import wintypes, c_void_p
 
-attached_devices: List[Device] = []
-pinned_profiles: List[Profile] = []
+# GWL_WNDPROC = -4
+WM_DESTROY  = 2
+DBT_DEVTYP_DEVICEINTERFACE = 0x00000005  # device interface class
+DBT_DEVICEREMOVECOMPLETE = 0x8004  # device is gone
+DBT_DEVICEARRIVAL = 0x8000  # system detected a new device
+WM_DEVICECHANGE = 0x0219
+
+SetWindowLong = ctypes.windll.user32.SetWindowLongW
+CallWindowProc = ctypes.windll.user32.CallWindowProcW
+
+## Create a type that will be used to cast a python callable to a c callback function
+## first arg is return type, the rest are the arguments
+#WndProcType = ctypes.WINFUNCTYPE(c_int, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+WndProcType = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.c_uint, ctypes.c_int, ctypes.c_int)
+
+RegisterDeviceNotification = ctypes.windll.user32.RegisterDeviceNotificationW
+RegisterDeviceNotification.restype = wintypes.HANDLE
+RegisterDeviceNotification.argtypes = [wintypes.HANDLE, c_void_p, wintypes.DWORD]
+
+UnregisterDeviceNotification = ctypes.windll.user32.UnregisterDeviceNotification
+UnregisterDeviceNotification.restype = wintypes.BOOL
+UnregisterDeviceNotification.argtypes = [wintypes.HANDLE]
+
+class DEV_BROADCAST_DEVICEINTERFACE(ctypes.Structure):
+    _fields_ = [("dbcc_size", ctypes.c_ulong),
+                  ("dbcc_devicetype", ctypes.c_ulong),
+                  ("dbcc_reserved", ctypes.c_ulong),
+                  ("dbcc_classguid", ctypes.c_char * 16),
+                  ("dbcc_name", ctypes.c_wchar * 256)]
+
+class DEV_BROADCAST_HDR(ctypes.Structure):
+    _fields_ = [("dbch_size", wintypes.DWORD),
+                ("dbch_devicetype", wintypes.DWORD),
+                ("dbch_reserved", wintypes.DWORD)]
 
 
-def init_gui():
-	
-	sg.theme('System Default 1')
-	
-	layout = [  
-		[sg.Text('Windows USB Devices'), sg.Button('Refresh'), sg.Button('Attach Device')],
-		[sg.Listbox(values=[], key='AvailableListbox')],
-		[],
-		[sg.Text('Attached Devices'), sg.Button('Detach Device'), sg.Button('Auto-Attach Device')],
-		[sg.Listbox(values=[], key='AttachedListbox')],
-		[],
-		[sg.Text('Auto-attached Profiles'), sg.Button('Delete Profile'), sg.Button('Auto-Attach Device')],
-		[sg.Listbox(values=[], key='PinnedListbox')],
-		[],
-	]
+def registerDeviceNotification(guid, devicetype=DBT_DEVTYP_DEVICEINTERFACE):
+    devIF = DEV_BROADCAST_DEVICEINTERFACE()
+    devIF.dbcc_size = ctypes.sizeof(DEV_BROADCAST_DEVICEINTERFACE)
+    devIF.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE
 
-	# Create the Window
-	window = sg.Window("WSL USB Manager", layout,
-                   default_element_size=(12, 1),
-                   resizable=True)
+    if guid:
+        devIF.dbcc_classguid = uuid.UUID(guid).bytes
 
-	return window
+    return RegisterDeviceNotification(master_window.winfo_id(), ctypes.byref(devIF), 0)
+
+def unregisterDeviceNotification(handle):
+    if UnregisterDeviceNotification(handle) == 0:
+        raise Exception("Unable to unregister device notification messages")
+
+#Change the following guid to the GUID of the device you want notifications for
+GUID_DEVINTERFACE_USB_DEVICE = "{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
 
 
 def refresh():
@@ -87,11 +115,19 @@ def attach_if_pinned(device):
 	return False
 			
 
+# def refresh_attached():
+# 	attached_devices = list_attached_usb()
+# 	attached_listbox.delete(*attached_listbox.get_children())
+# 	for device in attached_devices:
+# 		attached_listbox.insert('', "end", values=device)
+
 def attach_wsl():
+	# server_ip = remote_ip_input.get()
 	selection = available_listbox.selection()
 	if not selection:
 		print("no selection to attach")
 		return
+	# print(server_ip)
 	print(selection[0])
 	print(selection)
 	print(available_listbox.item(selection[0]))
@@ -111,7 +147,6 @@ def attach_wsl():
 	time.sleep(0.5)
 	refresh()
 
-
 def detach_wsl():
 	global attached_listbox
 	selection = attached_listbox.selection()
@@ -126,6 +161,8 @@ def detach_wsl():
 	time.sleep(0.5)
 	refresh()
 
+
+Device = namedtuple("Device", "BusId Description Attached")
 	
 def parse_state(text) -> List[Device]:
 	rows = []
@@ -150,9 +187,8 @@ def list_wsl_usb() -> List[Device]:
 	return parse_state(result.stdout)
 
 
-def list_attached_usb(devices=None) -> List[Device]:
+def list_attached_usb(devices=None):
 	return [d for d in (devices or list_wsl_usb()) if d.Attached]
-
 
 def attach_wsl_usb(bus_id):
 	result = subprocess.run(["usbipd", "wsl", "attach", "--busid="+bus_id], capture_output=True, text=True)
@@ -166,11 +202,12 @@ def attach_wsl_usb(bus_id):
 	print(result.stderr)
 	return result
 
-
 def detach_wsl_usb(bus_id):
 	result = subprocess.run(["usbipd", "wsl", "detach", "--busid="+str(bus_id)], capture_output=True, text=True)
 	print(result.stdout)
 	print(result.stderr)
+
+
 
 
 def auto_attach_wsl():
@@ -227,134 +264,109 @@ def save_auto_attach_profiles():
 	CONFIG_FILE.write_text(json.dumps(pinned_profiles))
 
 
-def usb_callback(attach):
-	print(f"USB attached={attach}")
-	refresh()
-
-
 #class UsbIpGui():
 
 #	def __init__(self):
+master_window = Tk()
+master_window.wm_title("WSL USB Manager")
+master_window.geometry("600x800")
+
+available_control_frame = Frame(master_window)
+available_control_frame.grid(column=0, row=0, sticky=W+E, pady=10)
+
+available_list_label = Label(available_control_frame, text="Windows USB Devices")
+available_list_refresh_button = Button(available_control_frame, text="Refresh", command=refresh)
+available_list_attach_button = Button(available_control_frame, text="Attach Device", command=attach_wsl)
 
 
-# Create the Window
-# window = sg.Window('Window Title', layout)
+available_listbox = Treeview(master_window, columns=DEVICE_COLUMNS, show="headings")
 
-# master_window = Tk()
-# master_window.wm_title("WSL USB Manager")
-# master_window.geometry("600x800")
+for i, col in enumerate(DEVICE_COLUMNS):
+	available_listbox.heading(col, text=col.title())
+	available_listbox.column(col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE)
 
-# available_control_frame = Frame(master_window)
-# available_control_frame.grid(column=0, row=0, sticky=W+E, pady=10)
+usb_devices = list_wsl_usb()
 
-# available_list_label = Label(available_control_frame, text="Windows USB Devices")
-# available_list_refresh_button = Button(available_control_frame, text="Refresh", command=refresh)
-# available_list_attach_button = Button(available_control_frame, text="Attach Device", command=attach_wsl)
+remote_devices = [d for d in usb_devices if not d.Attached]
+for device in remote_devices:
+	available_listbox.insert("", "end", values=device)
 
 
-# available_listbox = Treeview(master_window, columns=DEVICE_COLUMNS, show="headings")
+available_list_label.grid(column=0, row=0, padx=10)
+available_list_refresh_button.grid(column=2, row=0, padx=10)
+available_list_attach_button.grid(column=3, row=0, padx=10)
+available_listbox.grid(column=0, row=1, sticky=W+E+N+S, padx=10, pady=10)
 
-# for i, col in enumerate(DEVICE_COLUMNS):
-# 	available_listbox.heading(col, text=col.title())
-# 	available_listbox.column(col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE)
+attached_control_frame = Frame(master_window)
+attached_list_label = Label(attached_control_frame, text="Attached Devices")
+attached_list_refresh_button = Button(attached_control_frame, text="Refresh", command=refresh)
+detach_button = Button(attached_control_frame, text="Detach Device", command=detach_wsl)
+auto_attach_button = Button(attached_control_frame, text="Auto-Attach Device", command=auto_attach_wsl)
+attached_listbox = Treeview(columns=ATTACHED_COLUMNS, show="headings")
 
-# usb_devices = list_wsl_usb()
+for i, col in enumerate(ATTACHED_COLUMNS):
+	attached_listbox.heading(col, text=col.title())
+	attached_listbox.column(col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE)
 
-# remote_devices = [d for d in usb_devices if not d.Attached]
-# for device in remote_devices:
-# 	available_listbox.insert("", "end", values=device)
+attached_devices = list_attached_usb(usb_devices)
+for device in attached_devices:
+	attached_listbox.insert("", "end", values=device)
 
+attached_list_label.grid(column=0, row=0, padx=10)
+attached_list_refresh_button.grid(column=1, row=0, padx=10)
+detach_button.grid(column=2, row=0, padx=10)
+auto_attach_button.grid(column=3, row=0, padx=10)
 
-# available_list_label.grid(column=0, row=0, padx=10)
-# available_list_refresh_button.grid(column=2, row=0, padx=10)
-# available_list_attach_button.grid(column=3, row=0, padx=10)
-# available_listbox.grid(column=0, row=1, sticky=W+E+N+S, padx=10, pady=10)
-
-# attached_control_frame = Frame(master_window)
-# attached_list_label = Label(attached_control_frame, text="Attached Devices")
-# attached_list_refresh_button = Button(attached_control_frame, text="Refresh", command=refresh)
-# detach_button = Button(attached_control_frame, text="Detach Device", command=detach_wsl)
-# auto_attach_button = Button(attached_control_frame, text="Auto-Attach Device", command=auto_attach_wsl)
-# attached_listbox = Treeview(columns=ATTACHED_COLUMNS, show="headings")
-
-# for i, col in enumerate(ATTACHED_COLUMNS):
-# 	attached_listbox.heading(col, text=col.title())
-# 	attached_listbox.column(col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE)
-
-# attached_devices = list_attached_usb(usb_devices)
-# for device in attached_devices:
-# 	attached_listbox.insert("", "end", values=device)
-
-# attached_list_label.grid(column=0, row=0, padx=10)
-# attached_list_refresh_button.grid(column=1, row=0, padx=10)
-# detach_button.grid(column=2, row=0, padx=10)
-# auto_attach_button.grid(column=3, row=0, padx=10)
-
-# attached_control_frame.grid(column=0, row=2, sticky=E+W, pady=10)
-# attached_listbox.grid(column=0, row=3, sticky=W+E+N+S, pady=10, padx=10)
+attached_control_frame.grid(column=0, row=2, sticky=E+W, pady=10)
+attached_listbox.grid(column=0, row=3, sticky=W+E+N+S, pady=10, padx=10)
 
 
-# pinned_control_frame = Frame(master_window)
-# pinned_list_label = Label(pinned_control_frame, text="Auto-attached Profiles")
-# pinned_list_delete_button = Button(pinned_control_frame, text="Delete Profile", command=delete_profile)
-# pinned_listbox = Treeview(columns=DEVICE_COLUMNS, show="headings")
+pinned_control_frame = Frame(master_window)
+pinned_list_label = Label(pinned_control_frame, text="Auto-attached Profiles")
+pinned_list_delete_button = Button(pinned_control_frame, text="Delete Profile", command=delete_profile)
+pinned_listbox = Treeview(columns=DEVICE_COLUMNS, show="headings")
 
 
-# #setup column names
-# for i, col in enumerate(DEVICE_COLUMNS):
-# 	pinned_listbox.heading(col, text=col.title())
-# 	#pinned_listbox.column(col, width=tkFont)
-# 	pinned_listbox.column(col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE)
+#setup column names
+for i, col in enumerate(DEVICE_COLUMNS):
+	pinned_listbox.heading(col, text=col.title())
+	#pinned_listbox.column(col, width=tkFont)
+	pinned_listbox.column(col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE)
 
 
-# try:
-# 	pinned_profiles = json.loads(CONFIG_FILE.read_text())
-# 	for entry in pinned_profiles:
-# 		pinned_listbox.insert("", "end", values=entry)
+try:
+	pinned_profiles = json.loads(CONFIG_FILE.read_text())
+	for entry in pinned_profiles:
+		pinned_listbox.insert("", "end", values=entry)
 
-# 	refresh()
-# except Exception as ex:
-# 	pass
+	refresh()
+except Exception as ex:
+	pass
 
-# pinned_list_label.grid(column=0, row=0, padx=10)
-# pinned_list_delete_button.grid(column=3, row=0, padx=10)
+pinned_list_label.grid(column=0, row=0, padx=10)
+pinned_list_delete_button.grid(column=3, row=0, padx=10)
 
-# pinned_control_frame.grid(column=0, row=4, sticky=E+W, pady=10)
-# pinned_listbox.grid(column=0, row=5, sticky=W+E+N+S, pady=10, padx=10)
+pinned_control_frame.grid(column=0, row=4, sticky=E+W, pady=10)
+pinned_listbox.grid(column=0, row=5, sticky=W+E+N+S, pady=10, padx=10)
 
 
-# master_window.columnconfigure(0, weight=1)
-# master_window.rowconfigure(1, weight=1)
-# master_window.rowconfigure(3, weight=1)
-# master_window.rowconfigure(5, weight=1)
+master_window.columnconfigure(0, weight=1)
+master_window.rowconfigure(1, weight=1)
+master_window.rowconfigure(3, weight=1)
+master_window.rowconfigure(5, weight=1)
 
-# master_window.wm_protocol(0x0219, refresh)
-# master_window.wm_protocol("WM_DEVICECHANGE", refresh)
+devNotifyHandle = registerDeviceNotification(guid=GUID_DEVINTERFACE_USB_DEVICE)
+
+WM_DEVICECHANGE = 0x0219
+master_window.wm_protocol(0x0219, refresh)
+master_window.wm_protocol("WM_DEVICECHANGE", refresh)
 
 # def close():
 # 	print("CLOSING")
 
 # master_window.wm_protocol("WM_DELETE_WINDOW", close)
 
-window = init_gui()
-window.Show(non_blocking=True)
-
-
-devNotifyHandle = registerDeviceNotification(handle=window.MasterFrame.GetHandle(), callback=lambda attach: print("USB", attach))
-
-# window.App.TopWindow.addMsgHandler(WM_DEVICECHANGE, )
-
-# master_window.mainloop()
-while True:
-    event, values = window.read()
-    # if event == WM_DEVICECHANGE:
-    #     print("USB!!!")
-    if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
-        break
-    print('You entered ', values[0])
-
-window.close()
-
+master_window.mainloop()
 
 unregisterDeviceNotification(devNotifyHandle)
 
