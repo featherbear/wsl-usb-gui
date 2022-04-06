@@ -17,7 +17,6 @@ build:
     - $pydir = & py -3.9 -c "import sys,os;print(os.path.join(os.path.dirname(sys.executable),'Scripts'))"
     - $Env:path += ";$pydir"
     - Get-Command pip
-    - py -3.9 -m pip install pip-system-certs
 
     # Install WIX Toolkit
     - wget https://github.com/wixtoolset/wix3/releases/download/wix311rtm/wix311-binaries.zip -UseBasicParsing -OutFile c:\wix311-binaries.zip
@@ -27,14 +26,12 @@ build:
     - $env:PYTHONIOENCODING="UTF-8"
 
     # Build app  
-    - py -3.9 -m pip install -e .
+    - py -3.9 -m pip install -U pip setuptools wheel
     - py -3.9 -m pip install boto3==1.14.48  # newer version not compatible with pinned briefcase
-    - py -3.9 -m pip install git+git://github.com/andrewleech/briefcase.git@992ece7e
+    - py -3.9 -m pip install git+https://github.com/andrewleech/briefcase.git@992ece7e
     
     - git clone https://github.com/andrewleech/Python-Windows-template
-    - cd Python-Windows-template
-    - git checkout b49740688bd2a657ce3500ce846d72713d5594e5
-    - cd ..
+    - git -C Python-Windows-template   checkout b49740688bd2a657ce3500ce846d72713d5594e5
 
     - py -3.9 setup.py windows --sanitize-version --build --template Python-Windows-template
     - dir windows

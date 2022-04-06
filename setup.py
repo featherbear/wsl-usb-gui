@@ -53,7 +53,7 @@ setup(
         "app": {
             "formal_name": "WSL USB",
             "bundle": "net.alelec.wsl_usb_gui",
-            "icon": "wsl_usb_gui/usb.ico",
+            "icon": "wsl_usb_gui/usb",
         },
     },
 )
