@@ -28,39 +28,40 @@ LRESULT = LONG_PTR
 GWL_WNDPROC = -4
 WM_DESTROY = 2
 DBT_DEVTYP_DEVICEINTERFACE = 0x00000005  # device interface class
+DEVICE_NOTIFY_WINDOW_HANDLE = 0
+DEVICE_NOTIFY_ALL_INTERFACE_CLASSES = 4
 DBT_DEVICEREMOVECOMPLETE = 0x8004  # device is gone
 DBT_DEVICEARRIVAL = 0x8000  # system detected a new device
 WM_DEVICECHANGE = 0x0219
 
-# Change the following guid to the GUID of the device you want notifications for
+# Windows device GUID to filter on
 GUID_DEVINTERFACE_USB_DEVICE = "{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
-# GUID_DEVINTERFACE_USB_DEVICE = "{3c5e1462-5695-4e18-876b-f3f3d08aaf18}"
 
 ## Create a type that will be used to cast a python callable to a c callback function
 ## first arg is return type, the rest are the arguments
 WndProcType = ctypes.WINFUNCTYPE(c_int, HWND, UINT, WPARAM, LPARAM)
 
 
-SetWindowLongPtr = ctypes.windll.user32.SetWindowLongPtrA
+SetWindowLongPtr = ctypes.windll.user32.SetWindowLongPtrW
 SetWindowLongPtr.argtypes = [HWND, c_int, WndProcType]
-SetWindowLongPtr.restype = WndProcType
+SetWindowLongPtr.restype = LONG_PTR
 
-CallWindowProc = ctypes.windll.user32.CallWindowProcA
-CallWindowProc.argtypes = [WndProcType, HWND, UINT, WPARAM, LPARAM]
+CallWindowProc = ctypes.windll.user32.CallWindowProcW
+CallWindowProc.argtypes = [LONG_PTR, HWND, UINT, WPARAM, LPARAM]
 CallWindowProc.restype = LRESULT
 
-DefWindowProcA = ctypes.windll.user32.DefWindowProcA
-DefWindowProcA.argtypes = [HWND, UINT, WPARAM, LPARAM]
-DefWindowProcA.restype = LRESULT
+DefWindowProc = ctypes.windll.user32.DefWindowProcW
+DefWindowProc.argtypes = [HWND, UINT, WPARAM, LPARAM]
+DefWindowProc.restype = LRESULT
 
 
 RegisterDeviceNotification = ctypes.windll.user32.RegisterDeviceNotificationW
-RegisterDeviceNotification.restype = wintypes.HANDLE
-RegisterDeviceNotification.argtypes = [wintypes.HANDLE, c_void_p, wintypes.DWORD]
+RegisterDeviceNotification.restype = HWND
+RegisterDeviceNotification.argtypes = [HWND, c_void_p, wintypes.DWORD]
 
 UnregisterDeviceNotification = ctypes.windll.user32.UnregisterDeviceNotification
 UnregisterDeviceNotification.restype = wintypes.BOOL
-UnregisterDeviceNotification.argtypes = [wintypes.HANDLE]
+UnregisterDeviceNotification.argtypes = [HWND]
 
 
 class DEV_BROADCAST_DEVICEINTERFACE(ctypes.Structure):
@@ -81,6 +82,14 @@ class DEV_BROADCAST_HDR(ctypes.Structure):
     ]
 
 
+class DEV_BROADCAST_HDR(ctypes.Structure):
+    _fields_ = [
+        ("dbch_size", wintypes.DWORD),
+        ("dbch_devicetype", wintypes.DWORD),
+        ("dbch_reserved", wintypes.DWORD),
+    ]
+
+
 __handle = None
 __oldWndProc = None
 __callback = None
@@ -89,14 +98,20 @@ __localWndProcWrapped = None
 
 def localWndProc(hWnd, msg, wParam, lParam):
     if msg == WM_DEVICECHANGE:
-        if wParam in (DBT_DEVICEARRIVAL, DBT_DEVICEREMOVECOMPLETE):
-            __callback(attach=(wParam == DBT_DEVICEARRIVAL))
+        details = cast(lParam, POINTER(DEV_BROADCAST_HDR))
+        if details.contents.dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE:
+            details = cast(lParam, POINTER(DEV_BROADCAST_DEVICEINTERFACE))
+            # For some reason filtering by GUID in RegisterDeviceNotification stopped
+            # working, notifying on everything and filtering the guid here works instead
+            if GUID_DEVINTERFACE_USB_DEVICE.lower() in details.contents.dbcc_name:
+                if wParam in (DBT_DEVICEARRIVAL, DBT_DEVICEREMOVECOMPLETE):
+                    __callback(attach=(wParam == DBT_DEVICEARRIVAL))
 
     if msg == WM_DESTROY:
         unhookWndProc()
 
     ret = CallWindowProc(__oldWndProc, hWnd, msg, wParam, lParam)
-    # ret = DefWindowProcA(hWnd, msg, wParam, lParam)
+    # ret = DefWindowProc(hWnd, msg, wParam, lParam)
     return ret
 
 
@@ -109,7 +124,7 @@ def unhookWndProc():
 
 
 def registerDeviceNotification(
-    handle, callback, guid=GUID_DEVINTERFACE_USB_DEVICE, devicetype=DBT_DEVTYP_DEVICEINTERFACE
+    handle, callback, guid=None, devicetype=DBT_DEVTYP_DEVICEINTERFACE
 ):
     global __callback, __oldWndProc, __localWndProcWrapped, __handle
 
@@ -117,15 +132,21 @@ def registerDeviceNotification(
     devIF.dbcc_size = ctypes.sizeof(DEV_BROADCAST_DEVICEINTERFACE)
     devIF.dbcc_devicetype = devicetype
 
-    devIF.dbcc_classguid = uuid.UUID(guid).bytes
+    flags = DEVICE_NOTIFY_WINDOW_HANDLE
+    if guid:
+        devIF.dbcc_classguid = uuid.UUID(guid).bytes
+    else:
+        flags |= DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
 
+    ret = RegisterDeviceNotification(handle, ctypes.byref(devIF), flags)
+    
     __handle = handle
     __callback = callback
 
     __localWndProcWrapped = WndProcType(localWndProc)
     __oldWndProc = SetWindowLongPtr(handle, GWL_WNDPROC, __localWndProcWrapped)
 
-    return RegisterDeviceNotification(handle, ctypes.byref(devIF), 0)
+    return ret
 
 
 def unregisterDeviceNotification(handle):
