@@ -32,6 +32,17 @@ attached_devices: List[Device] = []
 pinned_profiles: List[Profile] = []
 
 
+def run(args):
+    CREATE_NO_WINDOW = 0x08000000
+    return subprocess.run(
+        args, 
+        capture_output=True, 
+        text=True, 
+        creationflags=CREATE_NO_WINDOW,
+        shell=(isinstance(args, str))
+    )
+
+
 def refresh():
     print("Refresh")
     attached_listbox.delete(*attached_listbox.get_children())
@@ -116,7 +127,7 @@ def parse_state(text) -> List[Device]:
 
 
 def list_wsl_usb() -> List[Device]:
-    result = subprocess.run(["usbipd", "state"], capture_output=True, text=True)
+    result = run(["usbipd", "state"])
     return parse_state(result.stdout)
 
 
@@ -125,19 +136,18 @@ def list_attached_usb(devices=None) -> List[Device]:
 
 
 def attach_wsl_usb(bus_id):
-    result = subprocess.run(
-        ["usbipd", "wsl", "attach", "--busid=" + bus_id], capture_output=True, text=True
-    )
+    result = run(["usbipd", "wsl", "attach", "--busid=" + bus_id])
     if "error:" in result.stderr and "administrator privileges" in result.stderr:
         showwarning(
             title="Administrator Privileges",
             message="The first time attaching a device to WSL requires elevated privileges; subsequent attaches will succeed with standard user privileges.",
         )
-        # result = subprocess.run(['runas', '/noprofile', '/user:Administrator', "usbipd", "wsl", "attach", "--busid="+bus_id], capture_output=True, text=True)
-        os.system(
-            r'''Powershell -Command "& { Start-Process \"usbipd\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
-            % bus_id
-        )
+        # os.system(
+        #     r'''Powershell -Command "& { Start-Process \"usbipd\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
+        #     % bus_id
+        # )
+        run(r'''Powershell -Command "& { Start-Process \"usbipd\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
+            % bus_id)
 
     print(result.stdout)
     print(result.stderr)
@@ -145,9 +155,7 @@ def attach_wsl_usb(bus_id):
 
 
 def detach_wsl_usb(bus_id):
-    result = subprocess.run(
-        ["usbipd", "wsl", "detach", "--busid=" + str(bus_id)], capture_output=True, text=True
-    )
+    result = run(["usbipd", "wsl", "detach", "--busid=" + str(bus_id)])
     print(result.stdout)
     print(result.stderr)
 
