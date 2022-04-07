@@ -117,7 +117,7 @@ def localWndProc(hWnd, msg, wParam, lParam):
 
 def unhookWndProc():
     global __localWndProcWrapped, __oldWndProc, __handle
-    SetWindowLongPtr(__handle, GWL_WNDPROC, __oldWndProc)
+    SetWindowLongPtr(__handle, GWL_WNDPROC, WndProcType(__oldWndProc))
 
     ## Allow the ctypes wrapper to be garbage collected
     __localWndProcWrapped = None
