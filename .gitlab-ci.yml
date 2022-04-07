@@ -29,7 +29,7 @@ build:
     - py -3.9 -m pip install -U pip==21.2.4 poetry==1.1.6  # newer pip ignores setup.py
     - py -3.9 -m poetry install
 
-    - py -3.9 -m poetry run python setup.py windows --sanitize-version --build --template briefcase-template
+    - py -3.9 -m poetry run python setup.py windows --sanitize-version --build --template briefcase-template --download-dir .
     - dir windows
     - copy-item windows\\*.msi .\\
     - dir

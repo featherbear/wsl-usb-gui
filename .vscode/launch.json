@@ -17,7 +17,13 @@
             "type": "python",
             "request": "launch",
             "program": "setup.py",
-            "args": ["windows", "--sanitize-version", "--build", "--template", "briefcase-template"],
+            "args": [
+                "windows", 
+                "--sanitize-version", 
+                "--build", 
+                "--template", "briefcase-template",
+                "--download-dir", ".",
+            ],
             "console": "integratedTerminal",
             "justMyCode": false
         }
