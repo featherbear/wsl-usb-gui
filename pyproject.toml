@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "wsl-usb-gui"
-version = "1.0"
+version = "0.0"
 description = ""
 authors = ["Andrew Leech <andrew@alelec.net>"]
 license = "MIT"
@@ -11,6 +11,9 @@ appdirs = "^1.4.4"
 setuptools-scm = "^6.4.2"
 
 [tool.poetry.dev-dependencies]
+pip = "21.2.4"
+boto3 = "1.14.48"
+briefcase = {git = "https://github.com/andrewleech/briefcase.git", rev = "992ece7e"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

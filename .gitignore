@@ -1,2 +1,8 @@
 /__pycache__/
 /wsl_usb_gui/__pycache__/
+/Python-Windows-template
+/windows/
+/*.dist-info/
+/build/
+/dist/
+/wsl_usb_gui.egg-info/

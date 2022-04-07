@@ -11,6 +11,15 @@
             "module": "wsl_usb_gui",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Build installer",
+            "type": "python",
+            "request": "launch",
+            "program": "setup.py",
+            "args": ["windows", "--sanitize-version", "--build", "--template", "briefcase-template"],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
