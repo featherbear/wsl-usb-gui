@@ -250,13 +250,6 @@ for i, col in enumerate(DEVICE_COLUMNS):
         col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE
     )
 
-# usb_devices = list_wsl_usb()
-
-# remote_devices = [d for d in usb_devices if not d.Attached]
-# for device in remote_devices:
-#     available_listbox.insert("", "end", values=device)
-
-
 available_list_label.grid(column=0, row=0, padx=10)
 available_list_refresh_button.grid(column=2, row=0, padx=10)
 available_list_attach_button.grid(column=3, row=0, padx=10)
@@ -276,10 +269,6 @@ for i, col in enumerate(ATTACHED_COLUMNS):
     attached_listbox.column(
         col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE
     )
-
-# attached_devices = list_attached_usb(usb_devices)
-# for device in attached_devices:
-#     attached_listbox.insert("", "end", values=device)
 
 attached_list_label.grid(column=0, row=0, padx=10)
 attached_list_refresh_button.grid(column=1, row=0, padx=10)
