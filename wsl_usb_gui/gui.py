@@ -44,7 +44,7 @@ def run(args):
 
 
 def refresh():
-    print("Refresh")
+    print("Refresh USB")
     attached_listbox.delete(*attached_listbox.get_children())
     available_listbox.delete(*available_listbox.get_children())
 
@@ -62,6 +62,8 @@ def refresh():
 
 def attach_if_pinned(device):
     for busid, desc in pinned_profiles:
+        busid = None if busid == "None" else busid
+        desc = None if desc == "None" else desc
         if busid and device.BusId.strip() != busid.strip():
             continue
         if desc and device.Description.strip() != desc.strip():
@@ -142,10 +144,6 @@ def attach_wsl_usb(bus_id):
             title="Administrator Privileges",
             message="The first time attaching a device to WSL requires elevated privileges; subsequent attaches will succeed with standard user privileges.",
         )
-        # os.system(
-        #     r'''Powershell -Command "& { Start-Process \"usbipd\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
-        #     % bus_id
-        # )
         run(r'''Powershell -Command "& { Start-Process \"usbipd\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
             % bus_id)
 
@@ -252,11 +250,11 @@ for i, col in enumerate(DEVICE_COLUMNS):
         col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE
     )
 
-usb_devices = list_wsl_usb()
+# usb_devices = list_wsl_usb()
 
-remote_devices = [d for d in usb_devices if not d.Attached]
-for device in remote_devices:
-    available_listbox.insert("", "end", values=device)
+# remote_devices = [d for d in usb_devices if not d.Attached]
+# for device in remote_devices:
+#     available_listbox.insert("", "end", values=device)
 
 
 available_list_label.grid(column=0, row=0, padx=10)
@@ -279,9 +277,9 @@ for i, col in enumerate(ATTACHED_COLUMNS):
         col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE
     )
 
-attached_devices = list_attached_usb(usb_devices)
-for device in attached_devices:
-    attached_listbox.insert("", "end", values=device)
+# attached_devices = list_attached_usb(usb_devices)
+# for device in attached_devices:
+#     attached_listbox.insert("", "end", values=device)
 
 attached_list_label.grid(column=0, row=0, padx=10)
 attached_list_refresh_button.grid(column=1, row=0, padx=10)
@@ -314,7 +312,6 @@ try:
     for entry in pinned_profiles:
         pinned_listbox.insert("", "end", values=entry)
 
-    refresh()
 except Exception as ex:
     pass
 
@@ -330,6 +327,7 @@ master_window.rowconfigure(1, weight=1)
 master_window.rowconfigure(3, weight=1)
 master_window.rowconfigure(5, weight=1)
 
+refresh()
 
 def main():
     devNotifyHandle = registerDeviceNotification(
