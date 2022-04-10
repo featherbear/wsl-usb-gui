@@ -57,9 +57,9 @@ try:
             "gui_scripts": [
                 "WSL USB=wsl_usb_gui.gui:main",
             ],
-            "console_scripts": [
-               "WSL USB debug=wsl_usb_gui.gui:main",
-            ],
+            #"console_scripts": [
+            #   "WSL USB debug=wsl_usb_gui.gui:main",
+            #],
         },
         cmdclass={"sdist": sdist},
         options={

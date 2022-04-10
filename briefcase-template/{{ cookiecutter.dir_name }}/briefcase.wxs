@@ -98,8 +98,11 @@
                     </Component>
             </DirectoryRef>
 
+        <CustomAction Id="InstallDeps" ExeCommand="[AppDir]\python\pythonw.exe app\wsl_usb_gui\install.py" Directory="AppDir" Execute="deferred" Impersonate="yes" Return="ignore"/>
+        
         <InstallExecuteSequence>
             <RemoveExistingProducts After="InstallValidate"/>
+            <Custom Action="InstallDeps" After="InstallFiles"/>
         </InstallExecuteSequence>
 
         <Feature Id="DefaultFeature" Level="1">

@@ -6,3 +6,4 @@
 /build/
 /dist/
 /wsl_usb_gui.egg-info/
+/.eggs/

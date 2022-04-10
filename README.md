@@ -9,6 +9,11 @@ It's uses server software running on the OS where USB devices are directly conne
 
 ## Installation
 
+The installation of dependencies should be handled automatically at the end of the MSI installer. If any error occur here though, or the program doesn't appear to run 
+correctly, it may help to run through the steps manually.
+
+### Manual dependency installation
+
 Check the usbipd-win instructions for any updates: https://github.com/dorssel/usbipd-win/wiki/WSL-support
 
 As of usbipd-win version 2.2.0 (at the time of writing) the following instructions should get you up and running.
@@ -22,7 +27,7 @@ C:\> wsl --list -v
 
 Then check the WSL2 kernel is up to date, version 5.10.60.1 or later is needed to support the underlying modules needed for usbip.
 From Ubuntu/bash:
-``` bash
+```
 me@PC:~$ uname -a
 Linux PC 5.10.102.1-microsoft-standard-WSL2 #1 SMP Wed Mar 2 00:30:59 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
 ```
