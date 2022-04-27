@@ -5,14 +5,12 @@ from tkinter.ttk import *
 from tkinter.messagebox import showwarning
 import json
 import subprocess
-import sys
-import re
 import time
-from urllib.parse import urlparse
 from collections import namedtuple
 from pathlib import Path
 from typing import *
 import appdirs
+from functools import partial
 from .usb_monitor import registerDeviceNotification, unregisterDeviceNotification
 
 mod_dir = Path(__file__).parent
@@ -28,7 +26,7 @@ CONFIG_FILE = Path(appdirs.user_data_dir("wsl-usb-gui", "")) / "config.json"
 Device = namedtuple("Device", "BusId Description Attached")
 Profile = namedtuple("Profile", "BusId Description")
 
-attached_devices: List[Device] = []
+# attached_devices: List[Device] = []
 pinned_profiles: List[Profile] = []
 
 
@@ -223,6 +221,17 @@ def usb_callback(attach):
     refresh()
 
 
+def do_listbox_menu(event, listbox, menu):
+    try:
+        listbox.selection_clear()
+        iid = listbox.identify_row(event.y)
+        if iid:
+            listbox.selection_set(iid)
+            menu.tk_popup(event.x_root, event.y_root)
+    finally:
+        menu.grab_release()
+
+
 # class UsbIpGui():
 
 # 	def __init__(self):
@@ -241,8 +250,11 @@ available_list_attach_button = Button(
     available_control_frame, text="Attach Device", command=attach_wsl
 )
 
-
 available_listbox = Treeview(master_window, columns=DEVICE_COLUMNS, show="headings")
+
+available_menu = Menu(master_window, tearoff=0)
+available_menu.add_command(label="Attach to WSL", command=attach_wsl)
+available_listbox.bind("<Button-3>", partial(do_listbox_menu, listbox=available_listbox, menu=available_menu))
 
 for i, col in enumerate(DEVICE_COLUMNS):
     available_listbox.heading(col, text=col.title())
@@ -255,6 +267,7 @@ available_list_refresh_button.grid(column=2, row=0, padx=10)
 available_list_attach_button.grid(column=3, row=0, padx=10)
 available_listbox.grid(column=0, row=1, sticky=W + E + N + S, padx=10, pady=10)
 
+
 attached_control_frame = Frame(master_window)
 attached_list_label = Label(attached_control_frame, text="Attached Devices")
 attached_list_refresh_button = Button(attached_control_frame, text="Refresh", command=refresh)
@@ -263,6 +276,11 @@ auto_attach_button = Button(
     attached_control_frame, text="Auto-Attach Device", command=auto_attach_wsl
 )
 attached_listbox = Treeview(columns=ATTACHED_COLUMNS, show="headings")
+
+attached_menu = Menu(master_window, tearoff=0)
+attached_menu.add_command(label="Detach from WSL", command=detach_wsl)
+attached_menu.add_command(label="Auto-Attach Device", command=auto_attach_wsl)
+attached_listbox.bind("<Button-3>", partial(do_listbox_menu, listbox=attached_listbox, menu=attached_menu))
 
 for i, col in enumerate(ATTACHED_COLUMNS):
     attached_listbox.heading(col, text=col.title())
@@ -278,13 +296,17 @@ auto_attach_button.grid(column=3, row=0, padx=10)
 attached_control_frame.grid(column=0, row=2, sticky=E + W, pady=10)
 attached_listbox.grid(column=0, row=3, sticky=W + E + N + S, pady=10, padx=10)
 
-
 pinned_control_frame = Frame(master_window)
 pinned_list_label = Label(pinned_control_frame, text="Auto-attached Profiles")
 pinned_list_delete_button = Button(
     pinned_control_frame, text="Delete Profile", command=delete_profile
 )
 pinned_listbox = Treeview(columns=DEVICE_COLUMNS, show="headings")
+
+pinned_menu = Menu(master_window, tearoff=0)
+pinned_menu.add_command(label="Delete Profile", command=delete_profile)
+pinned_listbox.bind("<Button-3>", partial(do_listbox_menu, listbox=pinned_listbox, menu=pinned_menu))
+
 
 
 # setup column names
