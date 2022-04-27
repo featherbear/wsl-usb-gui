@@ -12,7 +12,7 @@ build:
     - windows-1809
   script:
     # Install python
-    - choco install -y python3 --version=3.9.10
+    - choco install -y --no-progress python3 --version=3.9.2
     # Ensure Pip is on the path
     - $pydir = & py -3.9 -c "import sys,os;print(os.path.join(os.path.dirname(sys.executable),'Scripts'))"
     - $Env:path += ";$pydir"
@@ -29,7 +29,9 @@ build:
     - py -3.9 -m pip install -U pip==21.2.4 poetry==1.1.6  # newer pip ignores setup.py
     - py -3.9 -m poetry install
 
-    - py -3.9 -m poetry run python setup.py windows --sanitize-version --build --template briefcase-template --download-dir .
+    - dir
+    - echo $env:CI_PROJECT_URL/-/raw/$env:CI_COMMIT_SHA/python-3.9.2-embed-amd64-tkinter.zip
+    - py -3.9 -m poetry run python setup.py windows --sanitize-version --build --template briefcase-template --support-pkg $env:CI_PROJECT_URL/-/raw/$env:CI_COMMIT_SHA/python-3.9.2-embed-amd64-tkinter.zip
     - dir windows
     - copy-item windows\\*.msi .\\
     - dir
