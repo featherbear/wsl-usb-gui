@@ -5,7 +5,7 @@ def version_scheme():
     from setuptools_scm import version
 
     def local_scheme(vers):
-        return vers.format_choice(clean_format="+{node}", dirty_format="+{node}.dirty")
+        return vers.format_choice(clean_format="-{node}", dirty_format="-{node}.dirty")
 
     def version_scheme(vers):
         version.SEMVER_LEN = 2
