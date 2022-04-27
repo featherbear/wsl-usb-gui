@@ -52,6 +52,7 @@ publish:
     GIT_SUBMODULE_STRATEGY: none
   script:
     - pip3 install gitlab-release
+    - for f in ./*.msi; do mv "$f" "${f// /-}"; done
     - gitlab-release ./*.msi
   only:
     - tags
