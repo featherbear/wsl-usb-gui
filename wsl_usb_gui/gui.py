@@ -2,7 +2,7 @@
 import asyncio
 from tkinter import *
 from tkinter.ttk import *
-from tkinter.messagebox import showwarning
+from tkinter.messagebox import showwarning, askokcancel, showinfo
 import json
 import threading
 import subprocess
@@ -29,6 +29,13 @@ Profile = namedtuple("Profile", "BusId Description")
 
 app: "WslUsbGui" = None
 loop = None
+
+USBIPD_default = Path("C:\\Program Files\\usbipd-win\\usbipd.exe")
+if USBIPD_default.exists():
+    USBIPD = USBIPD_default
+else:
+    # try to run from anywhere on path, will try to install later if needed
+    USBIPD = "usbipd"
 
 
 def run(args):
@@ -162,12 +169,18 @@ class WslUsbGui:
 
 
     def list_wsl_usb(self) -> List[Device]:
-        result = run(["usbipd", "state"])
-        return self.parse_state(result.stdout)
+        global loop
+        try:
+            result = run([USBIPD, "state"])
+            return self.parse_state(result.stdout)
+        except Exception as ex:
+            if isinstance(ex, FileNotFoundError):
+                loop.call_soon_threadsafe(install_deps)
+            return None
 
     @staticmethod
     def attach_wsl_usb(bus_id):
-        result = run(["usbipd", "wsl", "attach", "--busid=" + bus_id])
+        result = run([USBIPD, "wsl", "attach", "--busid=" + bus_id])
         if "error:" in result.stderr and "administrator privileges" in result.stderr:
             showwarning(
                 title="Administrator Privileges",
@@ -183,7 +196,7 @@ class WslUsbGui:
 
     @staticmethod
     def detach_wsl_usb(bus_id):
-        result = run(["usbipd", "wsl", "detach", "--busid=" + str(bus_id)])
+        result = run([USBIPD, "wsl", "detach", "--busid=" + str(bus_id)])
         print(result.stdout)
         print(result.stderr)
 
@@ -218,6 +231,9 @@ class WslUsbGui:
         print("Refresh USB")
         
         usb_devices = await asyncio.get_running_loop().run_in_executor(None, self.list_wsl_usb)
+
+        if not usb_devices:
+            return
 
         self.attached_listbox.delete(*self.attached_listbox.get_children())
         self.available_listbox.delete(*self.available_listbox.get_children())
@@ -338,6 +354,17 @@ def usb_callback(attach):
     print(f"USB attached={attach}")
     if app:
         app.refresh(0.5)
+
+
+def install_deps():
+    global USBIPD
+    if askokcancel("Install Dependencies", "Some of the dependencies are missing, install them now?"):
+        from .install import install_task
+        rsp = install_task()
+        showinfo("Finished", "Finished Installation")
+        if rsp:
+            USBIPD = USBIPD_default
+            app.refresh()
 
 
 async def amain():

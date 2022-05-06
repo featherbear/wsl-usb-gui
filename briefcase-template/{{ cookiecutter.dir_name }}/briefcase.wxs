@@ -23,21 +23,22 @@
         <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
         <Property Id="ARPHELPLINK" Value="https://pybee.org" />
         <Property Id="ARPURLINFOABOUT" Value="https://pybee.org/about" />
-        <Property Id="ARPNOREPAIR" Value="1" />
+        <!-- <Property Id="ARPNOREPAIR" Value="1" /> -->
         <Property Id="ARPNOMODIFY" Value="1" />
 
         <Upgrade Id="$(var.ProductUpgradeCode)">
             <UpgradeVersion
-                    Minimum="$(var.ProductVersion)"
-                    OnlyDetect="yes"
-                    Property="NEWERVERSIONDETECTED"
-            />
-            <UpgradeVersion
                     Minimum="0.0.0"
                     Maximum="$(var.ProductVersion)"
                     IncludeMinimum="yes"
-                    IncludeMaximum="no"
+                    IncludeMaximum="yes"
                     Property="OLDERVERSIONBEINGUPGRADED"
+            />
+            <UpgradeVersion
+                    Minimum="$(var.ProductVersion)"
+                    IncludeMinimum="no"
+                    OnlyDetect="yes"
+                    Property="NEWERVERSIONDETECTED"
             />
         </Upgrade>
 
@@ -98,8 +99,8 @@
                     </Component>
             </DirectoryRef>
 
-        <CustomAction Id="InstallDeps" ExeCommand="[AppDir]\python\pythonw.exe app\wsl_usb_gui\install.py" Directory="AppDir" Execute="deferred" Impersonate="yes" Return="ignore"/>
-        
+        <CustomAction Id="InstallDeps" ExeCommand='[AppDir]python\pythonw.exe app\wsl_usb_gui\install.py' Directory="AppDir" Execute="deferred" Impersonate="yes" Return="ignore"/>
+
         <InstallExecuteSequence>
             <RemoveExistingProducts After="InstallValidate"/>
             <Custom Action="InstallDeps" After="InstallFiles"/>
