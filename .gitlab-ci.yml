@@ -31,7 +31,7 @@ build:
 
     - dir
     - echo $env:CI_PROJECT_URL/-/raw/$env:CI_COMMIT_SHA/python-3.9.2-embed-amd64-tkinter.zip
-    - py -3.9 -m poetry run python setup.py windows --sanitize-version --build --template briefcase-template --support-pkg $env:CI_PROJECT_URL/-/raw/$env:CI_COMMIT_SHA/python-3.9.2-embed-amd64-tkinter.zip
+    - py -3.9 -m poetry run python setup.py windows --sanitize-version --build --template briefcase-template
     - dir windows
     - copy-item windows\\*.msi .\\
     - dir

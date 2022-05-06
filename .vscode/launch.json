@@ -30,7 +30,6 @@
                 "--sanitize-version", 
                 "--build", 
                 "--template", "briefcase-template",
-                "--download-dir", ".",
             ],
             "console": "integratedTerminal",
             "justMyCode": false

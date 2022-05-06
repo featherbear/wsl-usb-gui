@@ -4,11 +4,15 @@
 # SPDX-License-Identifier: MIT
 # coding=utf-8
 import os
+import sys
+import time
 from setuptools import setup, find_packages
 from setuptools.command.sdist import sdist as _sdist
 import subprocess
-import codecs
 from pathlib import Path
+import http.server
+import socketserver
+import threading
 
 from wsl_usb_gui.version import version_scheme
 
@@ -35,6 +39,35 @@ if pyproject.exists():
     pyproject.rename(pyproject_disabled)
     os.system(f"git update-index --assume-unchanged {pyproject}")
     renamed = True
+
+
+
+if len(sys.argv) > 1 and sys.argv[1] == "windows":
+    # Briefcase expects to download the base python embed zip from a http url.
+    # As we needed to modify this package to include tkinter, we need to provide 
+    # our own download url to the local zip in this folder.
+    file_server_port = 0
+
+    def start_file_server():
+        os.chdir(Path(__file__).parent)
+
+        Handler = http.server.SimpleHTTPRequestHandler
+        with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
+            global file_server_port
+            file_server_port = httpd.socket.getsockname()[1]
+            # print("serving at port", file_server_port)
+            httpd.serve_forever()
+
+    daemon = threading.Thread(name='daemon_server',
+                            target=start_file_server)
+    daemon.setDaemon(True) # Set as a daemon so it will be killed once the main thread is dead.
+    daemon.start()
+
+    while file_server_port == 0:
+        time.sleep(0.25)
+
+    sys.argv.extend(["--support-pkg", f"http://127.0.0.1:{file_server_port}/python-3.9.2-embed-amd64-tkinter.zip"])
+
 
 try:
     setup(
