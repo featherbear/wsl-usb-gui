@@ -361,7 +361,7 @@ class WslUsbGui:
         frame.pack(pady=10)
         # Add Button for making selection
         button1 = Button(
-            frame, text="Bus_ID", command=lambda: self.auto_attach_wsl_choice(Device(bus_id, None))
+            frame, text="Bus_ID", command=lambda: self.auto_attach_wsl_choice(bus_id, None)
         )
         button1.grid(row=0, column=0, padx=2)
         button2 = Button(
@@ -372,8 +372,6 @@ class WslUsbGui:
             frame, text="Both", command=lambda: self.auto_attach_wsl_choice(bus_id, description)
         )
         button3.grid(row=0, column=2, padx=2)
-
-
 
 
     def do_listbox_menu(self, event, listbox, menu):
