@@ -9,6 +9,7 @@ import subprocess
 import logging
 
 user_data_dir = Path(appdirs.user_data_dir("wsl-usb-gui", ""))
+user_data_dir.mkdir(parents=True, exist_ok=True)
 
 install_log = user_data_dir / "install.log"
 print("Logging to", install_log)
