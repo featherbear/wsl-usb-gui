@@ -223,8 +223,8 @@ class WslUsbGui:
                 title="Administrator Privileges",
                 message="The first time attaching a device to WSL requires elevated privileges; subsequent attaches will succeed with standard user privileges.",
             )
-            run(r'''Powershell -Command "& { Start-Process \"usbipd\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
-                % bus_id)
+            run(r'''Powershell -Command "& { Start-Process \"%s\" -ArgumentList @(\"wsl\", \"attach\", \"--busid=%s\") -Verb RunAs } "'''
+                % (USBIPD, bus_id))
 
         print(result.stdout)
         print(result.stderr)
