@@ -1,4 +1,5 @@
 import sys
+import time
 from pathlib import Path
 
 app_packages = Path(__file__).parent / ".." / ".." / "app_packages"
@@ -19,6 +20,8 @@ logging.info("Running post-install script")
 
 try:
     import tkinter as tk
+    from tkinter import ttk
+    from tkinter import simpledialog
     from tkinter.messagebox import askokcancel
 except:
     logging.error("Tkinter not available")
@@ -34,11 +37,7 @@ def run(args, show=False):
     )
 
 def msgbox_ok_cancel(title, message):
-    root = tk.Tk()
-    root.overrideredirect(1)
-    root.withdraw()
     ret = askokcancel(title, message)
-    root.destroy()
     return ret
 
 
@@ -160,13 +159,72 @@ def install_server():
     return False
 
 
-def install_task():
+root_win = None
+
+
+class ProgressDialog(simpledialog.SimpleDialog):
+    def __init__(self, master, text='', title=None, class_=None, max=100):
+        super().__init__(master=master, text=text, title=title, class_=class_)
+        self.default = None
+        self.cancel = None
+
+        self._bar = ttk.Progressbar(self.root, orient="horizontal", 
+                                    length=200, mode="determinate")
+        
+        self._bar["maximum"] = max
+        self._bar.pack(expand=True, fill=tk.X, side=tk.BOTTOM, pady=10, padx=10)
+        self.root.attributes("-topmost", True)
+
+    def set_progress(self, value):
+        self._bar['value'] = value
+        self.root.update()
+
+def install_task(root=None):
+    global root_win
+    if root:
+        root_win = root
+        root_created = False
+    else:
+        root_win = tk.Tk()
+        root_win.overrideredirect(1)
+        root_win.update_idletasks()
+        root_win.tk.eval(f'tk::PlaceWindow {root_win._w} center')
+
+        window_width = 220
+        window_height = 100
+        screen_width = root_win.winfo_screenwidth()
+        screen_height = root_win.winfo_screenheight()
+        x_cordinate = int((screen_width/2) - (window_width/2)) - 70
+        y_cordinate = int((screen_height/2) - (window_height/2)) - 200
+        root_win.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
+        root_win.attributes('-alpha', 0.0)
+        # root_win.withdraw()
+        root_created = True
+        
+    root_win.update()
+
+    progress_bar = ProgressDialog(master=root_win, text='Installing...',
+                       title='Installing', max=4)
+    
+    # Install tasks
+    progress_bar.set_progress(0)
     rsp = check_wsl_version()
+
+    progress_bar.set_progress(1)
     rsp &= check_kernel_version()
+
+    progress_bar.set_progress(2)
     rsp &= install_client()
+
+    progress_bar.set_progress(3)
     rsp &= install_server()
+    
+    progress_bar.set_progress(4)
+    time.sleep(1)
 
     logging.info("Finished")
+    if root_created:
+        root_win.destroy()
     return rsp
 
 
