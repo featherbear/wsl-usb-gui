@@ -56,16 +56,22 @@ class WslUsbGui:
         self.tkroot.geometry("600x800")
         self.tkroot.iconbitmap(str(mod_dir / "usb.ico"))
 
+        ## TOP SECTION - Available USB Devices
+        
         available_control_frame = Frame(self.tkroot)
-        available_control_frame.grid(column=0, row=0, sticky=W + E, pady=10)
 
         available_list_label = Label(available_control_frame, text="Windows USB Devices")
-        self.available_list_refresh_button = Button(available_control_frame, text="Refresh", command=self.refresh)
         available_list_attach_button = Button(
             available_control_frame, text="Attach Device", command=self.attach_wsl
         )
+        self.available_list_refresh_button = Button(available_control_frame, text="Refresh", command=self.refresh)
 
-        self.available_listbox = Treeview(self.tkroot, columns=DEVICE_COLUMNS, show="headings")
+        available_listbox_frame = Frame(self.tkroot)
+        self.available_listbox = Treeview(available_listbox_frame, columns=DEVICE_COLUMNS, show="headings")
+
+        available_listbox_scroll = Scrollbar(available_listbox_frame)
+        available_listbox_scroll.configure(command=self.available_listbox.yview)
+        self.available_listbox.configure(yscrollcommand=available_listbox_scroll.set)
 
         available_menu = Menu(self.tkroot, tearoff=0)
         available_menu.add_command(label="Attach to WSL", command=self.attach_wsl)
@@ -78,19 +84,32 @@ class WslUsbGui:
             )
 
         available_list_label.grid(column=0, row=0, padx=10)
+        available_list_attach_button.grid(column=1, row=0, padx=10)
         self.available_list_refresh_button.grid(column=2, row=0, padx=10)
-        available_list_attach_button.grid(column=3, row=0, padx=10)
-        self.available_listbox.grid(column=0, row=1, sticky=W + E + N + S, padx=10, pady=10)
 
+        available_control_frame.grid(column=0, row=0, sticky=W + E, pady=10)
+        
+        available_listbox_frame.grid(column=0, row=1, sticky=W + E + N + S, pady=10, padx=10)
+        available_listbox_frame.rowconfigure(0, weight=1)
+        available_listbox_frame.columnconfigure(0, weight=1)
+        self.available_listbox.grid(column=0, row=0, sticky=W + E + N + S)
+        available_listbox_scroll.grid(column=1, row=0, sticky=W + N + S)
 
+        ## MIDDLE SECTION - USB devices currently attached
+        
         attached_control_frame = Frame(self.tkroot)
         attached_list_label = Label(attached_control_frame, text="Attached Devices")
-        attached_list_refresh_button = Button(attached_control_frame, text="Refresh", command=self.refresh)
         detach_button = Button(attached_control_frame, text="Detach Device", command=self.detach_wsl)
         auto_attach_button = Button(
             attached_control_frame, text="Auto-Attach Device", command=self.auto_attach_wsl
         )
-        self.attached_listbox = Treeview(columns=ATTACHED_COLUMNS, show="headings")
+        
+        attached_listbox_frame = Frame(self.tkroot)
+        self.attached_listbox = Treeview(attached_listbox_frame, columns=ATTACHED_COLUMNS, show="headings")
+
+        attached_listbox_scroll = Scrollbar(attached_listbox_frame)
+        attached_listbox_scroll.configure(command=self.attached_listbox.yview)
+        self.attached_listbox.configure(yscrollcommand=attached_listbox_scroll.set)
 
         attached_menu = Menu(self.tkroot, tearoff=0)
         attached_menu.add_command(label="Detach from WSL", command=self.detach_wsl)
@@ -104,19 +123,31 @@ class WslUsbGui:
             )
 
         attached_list_label.grid(column=0, row=0, padx=10)
-        attached_list_refresh_button.grid(column=1, row=0, padx=10)
-        detach_button.grid(column=2, row=0, padx=10)
-        auto_attach_button.grid(column=3, row=0, padx=10)
+        detach_button.grid(column=1, row=0, padx=10)
+        auto_attach_button.grid(column=2, row=0, padx=10)
 
         attached_control_frame.grid(column=0, row=2, sticky=E + W, pady=10)
-        self.attached_listbox.grid(column=0, row=3, sticky=W + E + N + S, pady=10, padx=10)
 
+        attached_listbox_frame.grid(column=0, row=3, sticky=W + E + N + S, pady=10, padx=10)
+        attached_listbox_frame.rowconfigure(0, weight=1)
+        attached_listbox_frame.columnconfigure(0, weight=1)
+        self.attached_listbox.grid(column=0, row=0, sticky=W + E + N + S)
+        attached_listbox_scroll.grid(column=1, row=0, sticky=W + N + S)
+
+        ## BOTTOM SECTION - saved profiles for auto-attach
+        
         pinned_control_frame = Frame(self.tkroot)
         pinned_list_label = Label(pinned_control_frame, text="Auto-attached Profiles")
         pinned_list_delete_button = Button(
             pinned_control_frame, text="Delete Profile", command=self.delete_profile
         )
-        self.pinned_listbox = Treeview(columns=DEVICE_COLUMNS, show="headings")
+
+        pinned_listbox_frame = Frame(self.tkroot)
+        self.pinned_listbox = Treeview(pinned_listbox_frame, columns=DEVICE_COLUMNS, show="headings")
+
+        pinned_listbox_scroll = Scrollbar(pinned_listbox_frame)
+        pinned_listbox_scroll.configure(command=self.pinned_listbox.yview)
+        self.pinned_listbox.configure(yscrollcommand=pinned_listbox_scroll.set)
 
         pinned_menu = Menu(self.tkroot, tearoff=0)
         pinned_menu.add_command(label="Delete Profile", command=self.delete_profile)
@@ -143,9 +174,15 @@ class WslUsbGui:
         pinned_list_delete_button.grid(column=3, row=0, padx=10)
 
         pinned_control_frame.grid(column=0, row=4, sticky=E + W, pady=10)
-        self.pinned_listbox.grid(column=0, row=5, sticky=W + E + N + S, pady=10, padx=10)
 
+        pinned_listbox_frame.grid(column=0, row=5, sticky=W + E + N + S, pady=10, padx=10)
+        pinned_listbox_frame.rowconfigure(0, weight=1)
+        pinned_listbox_frame.columnconfigure(0, weight=1)
+        self.pinned_listbox.grid(column=0, row=0, sticky=W + E + N + S)
+        pinned_listbox_scroll.grid(column=1, row=0, sticky=W + N + S)
 
+        ## Window Configure
+        
         self.tkroot.columnconfigure(0, weight=1)
         self.tkroot.rowconfigure(1, weight=1)
         self.tkroot.rowconfigure(3, weight=1)
@@ -358,7 +395,7 @@ def usb_callback(attach):
 
 def install_deps():
     global USBIPD
-    if askokcancel("Install Dependencies", "Some of the dependencies are missing, install them now?"):
+    if askokcancel("Install Dependencies", "Some of the dependencies are missing, install them now?\nNote: All WSL instances may need to be restarted."):
         from .install import install_task
         rsp = install_task()
         showinfo("Finished", "Finished Installation")
