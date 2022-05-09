@@ -103,14 +103,14 @@ def check_kernel_version():
         number_tuple = tuple((int(n) for n in number.split(".")))
         if number_tuple < (5,10,60,1):
             logging.warning("Kernel needs updating")
+            run(r'''Powershell -Command "& { Start-Process \"wsl\" -ArgumentList @(\"--update\") -Verb RunAs } "''')
             run("wsl --shutdown")
-            run("wsl --update", show=True)
         return True
     
     except Exception as ex:
         logging.exception(ex)
         rsp = msgbox_ok_cancel(
-            title="Error checking WSL kernel version",
+            title="Error checking or upgrading WSL kernel version",
             message=f"An unexpected error occurred while checking WSL kernel version, continue anyway?",
         )
         if not rsp:
