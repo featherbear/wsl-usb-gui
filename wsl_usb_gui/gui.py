@@ -60,11 +60,8 @@ class WslUsbGui:
         
         available_control_frame = Frame(self.tkroot)
 
-        available_list_label = Label(available_control_frame, text="Windows USB Devices")
-        available_list_attach_button = Button(
-            available_control_frame, text="Attach Device", command=self.attach_wsl
-        )
-        self.available_list_refresh_button = Button(available_control_frame, text="Refresh", command=self.refresh)
+        available_list_label = Label(available_control_frame, text="Windows USB Devices", font='Helvetica 14 bold')
+        refresh_button = Button(available_control_frame, text="Refresh", command=self.refresh)
 
         available_listbox_frame = Frame(self.tkroot)
         self.available_listbox = Treeview(available_listbox_frame, columns=DEVICE_COLUMNS, show="headings")
@@ -75,6 +72,7 @@ class WslUsbGui:
 
         available_menu = Menu(self.tkroot, tearoff=0)
         available_menu.add_command(label="Attach to WSL", command=self.attach_wsl)
+        available_menu.add_command(label="Auto-Attach Device", command=self.auto_attach_wsl)
         self.available_listbox.bind("<Button-3>", partial(self.do_listbox_menu, listbox=self.available_listbox, menu=available_menu))
 
         for i, col in enumerate(DEVICE_COLUMNS):
@@ -84,8 +82,9 @@ class WslUsbGui:
             )
 
         available_list_label.grid(column=0, row=0, padx=10)
-        available_list_attach_button.grid(column=1, row=0, padx=10)
-        self.available_list_refresh_button.grid(column=2, row=0, padx=10)
+        refresh_button.grid(column=2, row=0, sticky=E, padx=10)
+        available_control_frame.rowconfigure(0, weight=1)
+        available_control_frame.columnconfigure(1, weight=1)
 
         available_control_frame.grid(column=0, row=0, sticky=W + E, pady=10)
         
@@ -97,11 +96,17 @@ class WslUsbGui:
 
         ## MIDDLE SECTION - USB devices currently attached
         
-        attached_control_frame = Frame(self.tkroot)
-        attached_list_label = Label(attached_control_frame, text="Attached Devices")
-        detach_button = Button(attached_control_frame, text="Detach Device", command=self.detach_wsl)
+        control_frame = Frame(self.tkroot)
+        attached_list_label = Label(control_frame, text="WSL USB Devices", font='Helvetica 14 bold')
+        
+
+        attach_button = Button(
+            control_frame, text="Attach ↓", command=self.attach_wsl
+        )
+
+        detach_button = Button(control_frame, text="↑ Detach", command=self.detach_wsl)
         auto_attach_button = Button(
-            attached_control_frame, text="Auto-Attach Device", command=self.auto_attach_wsl
+            control_frame, text="Auto-Attach Device", command=self.auto_attach_wsl
         )
         
         attached_listbox_frame = Frame(self.tkroot)
@@ -123,10 +128,12 @@ class WslUsbGui:
             )
 
         attached_list_label.grid(column=0, row=0, padx=10)
-        detach_button.grid(column=1, row=0, padx=10)
-        auto_attach_button.grid(column=2, row=0, padx=10)
 
-        attached_control_frame.grid(column=0, row=2, sticky=E + W, pady=10)
+        attach_button.grid(column=1, row=0, padx=5)
+        detach_button.grid(column=2, row=0, padx=5)
+        auto_attach_button.grid(column=3, row=0, padx=5)
+
+        control_frame.grid(column=0, row=2, sticky=E + W, pady=10)
 
         attached_listbox_frame.grid(column=0, row=3, sticky=W + E + N + S, pady=10, padx=10)
         attached_listbox_frame.rowconfigure(0, weight=1)
@@ -137,7 +144,7 @@ class WslUsbGui:
         ## BOTTOM SECTION - saved profiles for auto-attach
         
         pinned_control_frame = Frame(self.tkroot)
-        pinned_list_label = Label(pinned_control_frame, text="Auto-attached Profiles")
+        pinned_list_label = Label(pinned_control_frame, text="Auto-attach Profiles", font='Helvetica 14 bold')
         pinned_list_delete_button = Button(
             pinned_control_frame, text="Delete Profile", command=self.delete_profile
         )
@@ -181,6 +188,11 @@ class WslUsbGui:
         self.pinned_listbox.grid(column=0, row=0, sticky=W + E + N + S)
         pinned_listbox_scroll.grid(column=1, row=0, sticky=W + N + S)
 
+        # Ensure only one device can be selected at a time
+        self.available_listbox.bind("<<TreeviewSelect>>", partial(self.deselect_other_treeviews, treeview=self.available_listbox))
+        self.attached_listbox.bind("<<TreeviewSelect>>", partial(self.deselect_other_treeviews, treeview=self.attached_listbox))
+        self.pinned_listbox.bind("<<TreeviewSelect>>", partial(self.deselect_other_treeviews, treeview=self.pinned_listbox))
+
         ## Window Configure
         
         self.tkroot.columnconfigure(0, weight=1)
@@ -204,6 +216,19 @@ class WslUsbGui:
                 rows.append(Device(str(bus_info), man_info, attached))
         return rows
 
+    def deselect_other_treeviews(self, *args, treeview):
+        if not treeview.selection():
+            return
+            
+        for tv in (
+            self.available_listbox,
+            self.attached_listbox,
+            self.pinned_listbox,
+        ):
+            if tv is treeview:
+                continue
+            for i in tv.selection():
+                tv.selection_remove(i)
 
     def list_wsl_usb(self) -> List[Device]:
         global loop
@@ -297,7 +322,7 @@ class WslUsbGui:
             if desc and device.Description.strip() != desc.strip():
                 continue
             self.attach_wsl_usb(device.BusId)
-            self.available_list_refresh_button.after(1000, self.refresh)
+            self.refresh(delay=1000)
             return True
         return False
 
