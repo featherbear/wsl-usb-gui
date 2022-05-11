@@ -381,7 +381,7 @@ class WslUsbGui:
 
         self.attached_listbox.delete(*self.attached_listbox.get_children())
         self.available_listbox.delete(*self.available_listbox.get_children())
-        for device in usb_devices:
+        for device in sorted(self.usb_devices, key=lambda d: d.BusId):
             if device.Attached:
                 self.attached_listbox.insert("", "end", values=device)
             else:
