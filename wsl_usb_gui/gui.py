@@ -206,6 +206,10 @@ class WslUsbGui:
         
         self.refresh()
 
+    @staticmethod
+    def create_profile(busid, description, instanceid):
+        return Profile(*(None if a == "None" else a for a in (busid, description, instanceid)))
+    
     def load_config(self):
         try:
             config = json.loads(CONFIG_FILE.read_text())
@@ -287,27 +291,47 @@ class WslUsbGui:
         print(result.stderr)
 
 
-    # Define a function to implement choice function
-    def auto_attach_wsl_choice(self, *option):
-        pop.destroy()
-        self.pinned_listbox.insert("", "end", values=option)
-        self.save_auto_attach_profiles()
+    def update_pinned_listbox(self):
+        self.pinned_listbox.delete(*self.pinned_listbox.get_children())
+        for profile in self.pinned_profiles:
+            busid = str(profile.BusId)
+            desc = str(profile.Description or self.lookup_description(profile.InstanceId))
+            instanceId = str(profile.InstanceId)
+            self.pinned_listbox.insert("", "end", values=(busid, desc, instanceId))
 
+    
+    # Define a function to implement choice function
+    def auto_attach_wsl_choice(self, profile):
+        self.pinned_profiles.append(profile)
+        self.save_config()
+        self.update_pinned_listbox()
+
+    def remove_pinned_profile(self, busid, description, instanceid):
+        profile = self.create_profile(busid, description, instanceid)
+        for i, p in enumerate(list(self.pinned_profiles)):
+            if ((p.BusId and p.BusId == profile.BusId) or 
+               (p.InstanceId and p.InstanceId == profile.InstanceId)):
+                self.pinned_profiles.remove(p)
 
     def delete_profile(self):
         selection = self.pinned_listbox.selection()
         if not selection:
             print("no selection to delete")
             return  # no selected item
-        print(selection)
+        busid, description, instanceid = self.pinned_listbox.item(selection[0])["values"]
         self.pinned_listbox.delete(selection)
-        self.save_auto_attach_profiles()
-
-
-    def save_auto_attach_profiles(self):
-        self.pinned_profiles = [self.pinned_listbox.item(r)["values"] for r in self.pinned_listbox.get_children()]
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(json.dumps(self.pinned_profiles))
+        self.remove_pinned_profile(busid, description, instanceid)
+        self.save_config()
+        
+    def get_selection(self):
+        rowid = self.available_listbox.selection()
+        if rowid:
+            return self.available_listbox.item(rowid[0])
+        rowid = self.attached_listbox.selection()
+        if rowid:
+            return self.attached_listbox.item(rowid[0])
+        return None
+    
     
     def rename_device(self):
         selection = self.get_selection()
@@ -366,16 +390,33 @@ class WslUsbGui:
                     self.attached_listbox.insert("", "end", values=device)
                 else:
                     self.available_listbox.insert("", "end", values=device)
+        
+        self.update_pinned_listbox()
 
     def refresh(self, delay=0):
         asyncio.get_running_loop().call_soon_threadsafe(asyncio.ensure_future, self.refresh_task(delay))
 
 
+    def lookup_description(self, instanceId):
+        if not instanceId:
+            return None
+
+        if instanceId == "None":
+            return None
+
+        for device in self.usb_devices:
+            if device.InstanceId == instanceId:
+                return device.Description
+    
     def attach_if_pinned(self, device):
-        for busid, desc in self.pinned_profiles:
-            busid = None if busid == "None" else busid
-            desc = None if desc == "None" else desc
+        for busid, desc, instanceId in self.pinned_profiles:
+            if (instanceId or busid):
+                # Only fallback to description if no other filter set
+                desc = None
+            
             if busid and device.BusId.strip() != busid.strip():
+                continue
+            if instanceId and device.InstanceId != instanceId:
                 continue
             if desc and device.Description.strip() != desc.strip():
                 continue
@@ -390,12 +431,10 @@ class WslUsbGui:
         if not selection:
             print("no selection to attach")
             return
-        print(selection[0])
-        print(selection)
         print(self.available_listbox.item(selection[0]))
         bus_id = self.available_listbox.item(selection[0])["values"][0].strip()
         description = self.available_listbox.item(selection[0])["values"][1]
-        print(bus_id)
+        print(f"Attach {bus_id}")
         result = self.attach_wsl_usb(bus_id)
         print(result.returncode)
         """if result.returncode == 0:
@@ -414,9 +453,11 @@ class WslUsbGui:
         if not selection:
             print("no selection to detach")
             return  # no selected item
-        print(selection)
-        bus_id = self.attached_listbox.item(selection[0])["values"][0].strip()
+        bus_id, description, instanceId, *_ = self.attached_listbox.item(selection[0])["values"]
+        print(f"Detach {bus_id}")
 
+        self.remove_pinned_profile(bus_id, description, instanceId)
+        
         self.detach_wsl_usb(bus_id)
 
         time.sleep(0.5)
@@ -424,37 +465,17 @@ class WslUsbGui:
 
     def auto_attach_wsl(self):
         global pop
-        # server_ip = remote_ip_input.get()
-        selection = self.attached_listbox.selection()
+        selection = self.get_selection()
         if not selection:
             print("no selection to create profile for")
             return
 
-        bus_id = self.attached_listbox.item(selection[0])["values"][0].strip()
-        description = self.attached_listbox.item(selection[0])["values"][1]
+        busid, description, instanceId, *args = selection["values"]
 
-        pop = Toplevel(self.tkroot)
-        pop.title("New Auto-Attach Profile")
-        pop.geometry("300x120")
-        # Create a Label Text
-        label = Label(pop, text="Pin by Bus_ID, Description or Both?")
-        label.pack(pady=20)
-        # Add a Frame
-        frame = Frame(pop)
-        frame.pack(pady=10)
-        # Add Button for making selection
-        button1 = Button(
-            frame, text="Bus_ID", command=lambda: self.auto_attach_wsl_choice(bus_id, None)
-        )
-        button1.grid(row=0, column=0, padx=2)
-        button2 = Button(
-            frame, text="Description", command=lambda: self.auto_attach_wsl_choice(None, description)
-        )
-        button2.grid(row=0, column=1, padx=2)
-        button3 = Button(
-            frame, text="Both", command=lambda: self.auto_attach_wsl_choice(bus_id, description)
-        )
-        button3.grid(row=0, column=2, padx=2)
+        popup = popupAutoAttach(self.tkroot, self, busid, description, instanceId)
+        self.tkroot.wait_window(popup.root)
+    
+        self.refresh()
 
 
     def do_listbox_menu(self, event, listbox, menu):
@@ -466,6 +487,41 @@ class WslUsbGui:
                 menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+
+class popupAutoAttach(simpledialog.SimpleDialog):
+    def __init__(self, master, app, bus_id, description, instanceId):
+        text = f"Pin the specific device, the physical USB port, or both?"
+        super().__init__(master=master, text=text, title="New Auto-Attach Profile", class_=None)
+        self.root.iconbitmap(ICON_PATH)
+        self.app = app
+        self.message["width"] = 250
+        self.message["justify"] = 'center'
+        f = Frame(self.root)
+        f.pack(padx=10, pady=10, expand=True)
+        buttonDevice = Button(
+            f, text="Device", 
+            command=partial(self.choice, app, Profile(None, description, instanceId))
+        )
+        buttonPort = Button(
+            f, text="Port", 
+            command=partial(self.choice, app, Profile(bus_id, None, None))
+        )
+        buttonBoth = Button(
+            f, text="Both", 
+            command=partial(self.choice, app, Profile(bus_id, description, instanceId))
+        )
+        buttonDevice.pack(padx=0, pady=0, expand=True, fill='both', side='left')
+        buttonPort.pack(padx=10, pady=0, expand=True, fill='both', side='left')
+        buttonBoth.pack(padx=0, pady=0, expand=True, fill='both', side='left')
+        self.cancel = 0
+
+    def choice(self, app, profile):
+        app.auto_attach_wsl_choice(profile)
+        self.root.destroy()
+        
+    def done(self, num):
+        self.root.destroy()
 
 
 class popupTextEntry(simpledialog.SimpleDialog):
