@@ -2,6 +2,7 @@
 import asyncio
 from tkinter import *
 from tkinter.ttk import *
+from tkinter import simpledialog
 from tkinter.messagebox import showwarning, askokcancel, showinfo
 import json
 import threading
@@ -15,6 +16,7 @@ from functools import partial
 from .usb_monitor import registerDeviceNotification, unregisterDeviceNotification
 
 mod_dir = Path(__file__).parent
+ICON_PATH = str(mod_dir / "usb.ico")
 
 DEVICE_COLUMNS = ["bus_id", "description"]
 DEVICE_COLUMN_WIDTHS = [50, 50]
@@ -24,8 +26,8 @@ USBIPD_PORT = 3240
 CONFIG_FILE = Path(appdirs.user_data_dir("wsl-usb-gui", "")) / "config.json"
 
 
-Device = namedtuple("Device", "BusId Description Attached")
-Profile = namedtuple("Profile", "BusId Description")
+Device = namedtuple("Device", "BusId Description InstanceId Attached")
+Profile = namedtuple("Profile", "BusId Description InstanceId", defaults=(None, None, None))
 
 app: "WslUsbGui" = None
 loop = None
@@ -54,7 +56,11 @@ class WslUsbGui:
         self.tkroot = Tk()
         self.tkroot.wm_title("WSL USB Manager")
         self.tkroot.geometry("600x800")
-        self.tkroot.iconbitmap(str(mod_dir / "usb.ico"))
+        self.tkroot.iconbitmap(ICON_PATH)
+
+        self.usb_devices = []
+        self.pinned_profiles: List[Profile] = []
+        self.name_mapping = dict()
 
         ## TOP SECTION - Available USB Devices
         
@@ -73,6 +79,7 @@ class WslUsbGui:
         available_menu = Menu(self.tkroot, tearoff=0)
         available_menu.add_command(label="Attach to WSL", command=self.attach_wsl)
         available_menu.add_command(label="Auto-Attach Device", command=self.auto_attach_wsl)
+        available_menu.add_command(label="Rename Device", command=self.rename_device)
         self.available_listbox.bind("<Button-3>", partial(self.do_listbox_menu, listbox=self.available_listbox, menu=available_menu))
 
         for i, col in enumerate(DEVICE_COLUMNS):
@@ -108,6 +115,9 @@ class WslUsbGui:
         auto_attach_button = Button(
             control_frame, text="Auto-Attach Device", command=self.auto_attach_wsl
         )
+        rename_button = Button(
+            control_frame, text="Rename", command=self.rename_device
+        )
         
         attached_listbox_frame = Frame(self.tkroot)
         self.attached_listbox = Treeview(attached_listbox_frame, columns=ATTACHED_COLUMNS, show="headings")
@@ -119,6 +129,7 @@ class WslUsbGui:
         attached_menu = Menu(self.tkroot, tearoff=0)
         attached_menu.add_command(label="Detach from WSL", command=self.detach_wsl)
         attached_menu.add_command(label="Auto-Attach Device", command=self.auto_attach_wsl)
+        attached_menu.add_command(label="Rename Device", command=self.rename_device)
         self.attached_listbox.bind("<Button-3>", partial(self.do_listbox_menu, listbox=self.attached_listbox, menu=attached_menu))
 
         for i, col in enumerate(ATTACHED_COLUMNS):
@@ -132,6 +143,7 @@ class WslUsbGui:
         attach_button.grid(column=1, row=0, padx=5)
         detach_button.grid(column=2, row=0, padx=5)
         auto_attach_button.grid(column=3, row=0, padx=5)
+        rename_button.grid(column=4, row=0, padx=5)
 
         control_frame.grid(column=0, row=2, sticky=E + W, pady=10)
 
@@ -167,16 +179,6 @@ class WslUsbGui:
                 col, minwidth=40, width=50, anchor=W if i else CENTER, stretch=TRUE if i else FALSE
             )
 
-        self.pinned_profiles: List[Profile] = []
-
-        try:
-            self.pinned_profiles = json.loads(CONFIG_FILE.read_text())
-            for entry in self.pinned_profiles:
-                self.pinned_listbox.insert("", "end", values=entry)
-
-        except Exception as ex:
-            pass
-
         pinned_list_label.grid(column=0, row=0, padx=10)
         pinned_list_delete_button.grid(column=3, row=0, padx=10)
 
@@ -200,20 +202,42 @@ class WslUsbGui:
         self.tkroot.rowconfigure(3, weight=1)
         self.tkroot.rowconfigure(5, weight=1)
 
+        self.load_config()
+        
         self.refresh()
 
-    @staticmethod
-    def parse_state(text) -> List[Device]:
+    def load_config(self):
+        try:
+            config = json.loads(CONFIG_FILE.read_text())
+            if isinstance(config, list):
+                self.pinned_profiles = [self.create_profile(c) for c in config]
+            else:
+                self.pinned_profiles = [self.create_profile(*c) for c in config["pinned_profiles"]]
+                self.name_mapping = config["name_mapping"]
+
+        except Exception as ex:
+            pass
+
+    def save_config(self):
+        config = dict(
+            pinned_profiles=self.pinned_profiles,
+            name_mapping=self.name_mapping,
+        )
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_FILE.write_text(json.dumps(config, indent=4, sort_keys=True))
+
+    
+    def parse_state(self, text) -> List[Device]:
         rows = []
         devices = json.loads(text)
 
         for device in devices["Devices"]:
             bus_info = device["BusId"]
             if bus_info:
-                man_info = device["Description"]
-
+                instanceId = device["InstanceId"]
+                description = self.name_mapping.get(instanceId, device["Description"])
                 attached = device["ClientIPAddress"]
-                rows.append(Device(str(bus_info), man_info, attached))
+                rows.append(Device(str(bus_info), description, instanceId, attached))
         return rows
 
     def deselect_other_treeviews(self, *args, treeview):
@@ -284,7 +308,41 @@ class WslUsbGui:
         self.pinned_profiles = [self.pinned_listbox.item(r)["values"] for r in self.pinned_listbox.get_children()]
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         CONFIG_FILE.write_text(json.dumps(self.pinned_profiles))
+    
+    def rename_device(self):
+        selection = self.get_selection()
+        if not selection:
+            print("no selection to rename")
+            return
 
+        busid, description, *args = selection["values"]
+        
+        device = [d for d in self.usb_devices if \
+            d.BusId == busid and \
+            d.Description == description
+        ][0]
+
+        instanceId = device.InstanceId
+
+        current = self.name_mapping.get(instanceId, description)
+
+        getnewname = popupTextEntry(self.tkroot, busid, current)
+        self.tkroot.wait_window(getnewname.root)
+        newname = getnewname.value
+
+        if newname is None:
+            # Cancel
+            return
+
+        if newname:
+            self.name_mapping[instanceId] = newname
+        else:
+            try:
+                self.name_mapping.pop(instanceId)
+            except:
+                pass
+        self.save_config()
+        self.refresh()
 
     async def refresh_task(self, delay=0):
         if delay:
@@ -292,9 +350,9 @@ class WslUsbGui:
 
         print("Refresh USB")
         
-        usb_devices = await asyncio.get_running_loop().run_in_executor(None, self.list_wsl_usb)
+        self.usb_devices = await asyncio.get_running_loop().run_in_executor(None, self.list_wsl_usb)
 
-        if not usb_devices:
+        if not self.usb_devices:
             return
 
         self.attached_listbox.delete(*self.attached_listbox.get_children())
@@ -408,6 +466,31 @@ class WslUsbGui:
                 menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+
+class popupTextEntry(simpledialog.SimpleDialog):
+    def __init__(self, master, busid=None, name=None):
+        text = f"Enter new label for port: {busid}\nOr leave blank to reset to default."
+        super().__init__(master=master, text=text, title="Rename", class_=None)
+        self.root.iconbitmap(ICON_PATH)
+        self.message["width"] = 400
+        f = Frame(self.root)
+        f.pack(padx=20, pady=10, expand=True)
+        self.e=Entry(f)
+        self.e.insert(0, name)
+        self.e.pack(padx=5, pady=0, side='left', expand=True)
+        self.b=Button(f,text='Ok',command=self.return_event)
+        self.b.pack(padx=5, pady=0, side='right')
+        self.e.focus_set()
+        self.cancel = 0
+
+    def return_event(self, event=None):
+        self.value = self.e.get()
+        self.root.destroy()
+    
+    def done(self, num):
+        self.value = None
+        self.root.destroy()
 
 
 def usb_callback(attach):
