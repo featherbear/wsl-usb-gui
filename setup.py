@@ -6,6 +6,7 @@
 import os
 import sys
 import time
+import shutil
 from setuptools import setup, find_packages
 from setuptools.command.sdist import sdist as _sdist
 import subprocess
@@ -29,6 +30,10 @@ class sdist(_sdist):
 with open("README.md") as f:
     long_description = f.read()
 
+install_dir = "briefcase-template/{{ cookiecutter.dir_name }}/content/"
+shutil.copy("LICENSE", install_dir)
+shutil.copy("README.md", install_dir)
+shutil.copy("screenshot.png", install_dir)
 
 root = Path(__file__).parent
 pyproject = Path(root / "pyproject.toml")
@@ -39,7 +44,6 @@ if pyproject.exists():
     pyproject.rename(pyproject_disabled)
     os.system(f"git update-index --assume-unchanged {pyproject}")
     renamed = True
-
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "windows":

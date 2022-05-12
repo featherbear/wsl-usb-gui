@@ -65,4 +65,7 @@ At this point you should probably reboot your computer, then you can use this to
 ## Credits
 All the hard work to get USB devices working in WSL is thanks to USBIP and in particular usbipd-win : https://github.com/dorssel/usbipd-win
 
+The WSL USB installer bundles a copy of usbipd-win from https://github.com/dorssel/usbipd-win/releases  
+See [Drivers/README](https://github.com/dorssel/usbipd-win/blob/master/Drivers/README.md) and [COPYING](https://github.com/dorssel/usbipd-win/blob/master/COPYING.md) for associated licences.
+
 This gui tool was inspired by https://github.com/K-Francis-H/usbip-gui and originally based on this codebase.
