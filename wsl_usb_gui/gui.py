@@ -396,7 +396,10 @@ class WslUsbGui:
     def refresh(self, delay=0):
         asyncio.get_running_loop().call_soon_threadsafe(asyncio.ensure_future, self.refresh_task(delay))
 
-
+    def check_wsl_udev(self):
+        # Autostart WSL udev service if needed
+        print(run(["wsl", "--user", "root", "sh", "-c", "pgrep udev || (echo 'starting udev'; service udev restart)"]).stdout.strip())
+    
     def lookup_description(self, instanceId):
         if not instanceId:
             return None
@@ -573,6 +576,9 @@ async def amain():
     devNotifyHandle = registerDeviceNotification(
         handle=app.tkroot.winfo_id(), callback=usb_callback
     )
+    
+    app.check_wsl_udev()
+
     while True:
         try:
             app.tkroot.update()
