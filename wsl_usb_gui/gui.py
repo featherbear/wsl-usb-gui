@@ -45,7 +45,7 @@ def run(args):
     return subprocess.run(
         args, 
         capture_output=True, 
-        text=True, 
+        encoding='UTF-8',
         creationflags=CREATE_NO_WINDOW,
         shell=(isinstance(args, str))
     )
