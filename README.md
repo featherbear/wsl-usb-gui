@@ -12,7 +12,9 @@ It's uses server software running on the OS where USB devices are directly conne
 The latest installer is always available on [the releases page](https://gitlab.com/alelec/wsl-usb-gui/-/releases).
 
 The installation of dependencies should be handled automatically at the end of the MSI installer. 
-If any error occur here though, or the program doesn't appear to run correctly, it may help to run through the steps manually as decxribed below.
+
+If any error occur here though, or the program doesn't appear to run correctly, a log of the install process can be viewed by hitting `Win`-`R` on the keyboard and copy/paste in: `notepad %APPDATA%\..\local\wsl-usb-gui\install.log`  
+Alternatively, it may help to run through the dependency install steps manually as described below. 
 
 ### Manual dependency installation
 
